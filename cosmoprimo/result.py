@@ -41,8 +41,8 @@ def DESIDR2Flatw0waCDM(engine='class', precision=None, extra_params=None, **para
         engine=engine,
         precision=precision,
         extra_params=extra_params,
+        **bestfit_params
     )
-    cosmo = cosmo.clone(**bestfit_params)  # type: ignore[arg-type]
 
     return cosmo.clone(**params)
 

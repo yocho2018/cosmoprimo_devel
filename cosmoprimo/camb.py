@@ -4,7 +4,7 @@ import warnings
 
 import numpy as np
 
-from .cosmology import BaseEngine, BaseSection, BaseBackground, CosmologyInputError, CosmologyComputationError
+from .cosmology import BaseEngine, BaseSection, BaseBackground, DefaultBackground, CosmologyInputError, CosmologyComputationError
 from .interpolator import PowerSpectrumInterpolator1D, PowerSpectrumInterpolator2D
 from . import utils, constants
 
@@ -84,9 +84,17 @@ class CambEngine(BaseEngine):
             de_params = {}
             for name, rename in {'w0_fld': 'w', 'wa_fld': 'wa', 'cs2_fld': 'cs2'}.items():
                 de_params[rename] = base_params.pop(name)
+            # modifying for the IDE models (Nisha)
             if self._has_fld:
-                base_params['dark_energy_model'] = self.camb.dark_energy.DarkEnergyPPF if self['use_ppf'] and self['cs2_fld'] == 1. else self.camb.dark_energy.DarkEnergyFluid
+                # base_params['dark_energy_model'] = self.camb.dark_energy.DarkEnergyPPF if self['use_ppf'] and self['cs2_fld'] == 1. else self.camb.dark_energy.DarkEnergyFluid
+                # base_params.update(de_params)
+                if 'dark_energy_model' not in base_params:
+                    base_params['dark_energy_model'] = (
+                        self.camb.dark_energy.DarkEnergyPPF
+                        if self['use_ppf'] and self['cs2_fld'] == 1. else
+                            self.camb.dark_energy.DarkEnergyFluid)
                 base_params.update(de_params)
+            # modification for IDE ends
 
             base_params['Want_CMB_lensing'] = base_params['DoLensing'] = base_params.pop('lensing')
             base_params['lmax'] = base_params.pop('ellmax_cl')
@@ -273,6 +281,7 @@ class Background(BaseBackground):
         self._RH0_ = constants.rho_crit_over_Msunph_per_Mpcph3 * constants.c**2 / (self.H0 * 1e3)**2 / 3.
         # for name in ['m', 'ncdm_tot']:
         #     setattr(self,'_Omega0_{}'.format(name),getattr(self,'Omega_{}'.format(name))(0.))
+        self._cache = {}
 
     @property
     def age(self):
@@ -407,7 +416,7 @@ class Background(BaseBackground):
         return np.sinh(np.sqrt(-K) * (chi2 - chi1)) / np.sqrt(-K) / (1 + z2)
 
     @utils.flatarray(dtype=np.float64)
-    def comoving_angular_distance(self, z):
+    def comoving_transverse_distance(self, z):
         r"""
         Comoving angular distance, in :math:`\mathrm{Mpc}/h`.
 
@@ -424,8 +433,26 @@ class Background(BaseBackground):
         """
         return self.ba.luminosity_distance(z) * self._h
 
+    def growth_factor(self, z, mass='m', znorm=None):
+        r"""
+        Scale-invariant growth factor :math:`D(z)`.
 
-@utils.addproperty('rs_drag', 'z_drag', 'rs_star', 'z_star', 'tau_reio', 'z_reio', 'YHe')
+        CAMB does not expose this background-level quantity natively (its Python API only gives
+        scale-dependent, perturbation-level growth via :meth:`get_redshift_evolution`), so it is
+        computed by solving the same ODE as :meth:`DefaultBackground.growth_factor`, which matches
+        CLASS's native ``index_bg_D`` when ``mass='cb'`` (see :meth:`classy.Background.growth_factor`).
+        """
+        return DefaultBackground.growth_factor(self, z, mass=mass, znorm=znorm)
+
+    def growth_rate(self, z, mass='m'):
+        r"""
+        Scale-invariant growth rate :math:`d\ln D/d\ln a`.
+
+        See :meth:`growth_factor` for the definition and the ``mass`` argument.
+        """
+        return DefaultBackground.growth_rate(self, z, mass=mass)
+
+
 class Thermodynamics(BaseSection):
 
     def __init__(self, engine):
@@ -434,17 +461,76 @@ class Thermodynamics(BaseSection):
         self._engine.compute('thermodynamics')
         self.th = self._engine.th
         self.ba = self._engine.ba
-        # convert RHO to 1e10 Msun/h
         self._h = self.th.Params.H0 / 100
 
-        derived = self.th.get_derived_params()
-        self._rs_drag = derived['rdrag'] * self._h
-        self._z_drag = derived['zdrag']
-        self._rs_star = derived['rstar'] * self._h
-        self._z_star = derived['zstar']
-        self._z_reio = self.th.Params.get_zrei()
-        self._tau_reio = self.th.Params.Reion.optical_depth
-        self._YHe = self.th.Params.YHe
+    def _get_derived(self):
+        if not hasattr(self, '_derived'):
+            self._derived = self.th.get_derived_params()
+        return self._derived
+
+    @property
+    def z_drag(self):
+        if not hasattr(self, '_z_drag'):
+            self._z_drag = self._get_derived()['zdrag']
+        return self._z_drag
+
+    @property
+    def rs_drag(self):
+        if not hasattr(self, '_rs_drag'):
+            self._rs_drag = self._get_derived()['rdrag'] * self._h
+        return self._rs_drag
+
+    @property
+    def z_star_noreion(self):
+        """Redshift where optical depth excluding reionization = 1 (CAMB's native definition)."""
+        if not hasattr(self, '_z_star_noreion'):
+            self._z_star_noreion = self._get_derived()['zstar']
+        return self._z_star_noreion
+
+    @property
+    def rs_star_noreion(self):
+        """Comoving sound horizon at z_star_noreion, in Mpc/h."""
+        if not hasattr(self, '_rs_star_noreion'):
+            self._rs_star_noreion = self.th.sound_horizon(self.z_star_noreion) * self._h
+        return self._rs_star_noreion
+
+    @property
+    def z_star(self):
+        """Redshift where total optical depth (including reionization) = 1, matching CLASS."""
+        if not hasattr(self, '_z_star'):
+            self._z_star = self._compute_z_star_from_opacity()
+        return self._z_star
+
+    @property
+    def rs_star(self):
+        """Comoving sound horizon at z_star, in Mpc/h."""
+        if not hasattr(self, '_rs_star'):
+            self._rs_star = self.th.sound_horizon(self.z_star) * self._h
+        return self._rs_star
+
+    @property
+    def tau_reio(self):
+        return self.th.Params.Reion.optical_depth
+
+    @property
+    def z_reio(self):
+        return self.th.Params.get_zrei()
+
+    @property
+    def YHe(self):
+        return self.th.Params.YHe
+
+    def _compute_z_star_from_opacity(self):
+        """Find z where total optical depth (including reionization) = 1, matching CLASS."""
+        from scipy.integrate import cumulative_trapezoid
+        from scipy.interpolate import interp1d
+        from scipy.optimize import brentq
+        z_arr = np.linspace(0., 1300., 4000)
+        ev = self.th.get_background_redshift_evolution(z_arr, vars=['opacity'])
+        chi_arr = self.ba.comoving_radial_distance(z_arr)
+        dchi_dz = np.abs(np.gradient(chi_arr, z_arr))
+        tau = cumulative_trapezoid(ev['opacity'] * dchi_dz, z_arr, initial=0.)
+        return brentq(interp1d(z_arr, tau - 1., kind='cubic'), 1050., 1150.)
 
     @utils.flatarray(dtype=np.float64)
     def rs_z(self, z):
@@ -458,6 +544,10 @@ class Thermodynamics(BaseSection):
     @property
     def theta_star(self):
         return self.rs_star / (self.ba.angular_diameter_distance(self.z_star) * self._h) / (1 + self.z_star)
+
+    @property
+    def theta_star_noreion(self):
+        return self.rs_star_noreion / (self.ba.angular_diameter_distance(self.z_star_noreion) * self._h) / (1 + self.z_star_noreion)
 
 
 class Transfer(BaseSection):

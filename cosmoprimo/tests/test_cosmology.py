@@ -29,9 +29,9 @@ def test_params():
     Fourier(cosmo)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        fn = os.path.join(tmp_dir, 'cosmo.npy')
-        cosmo.save(fn)
-        cosmo = Cosmology.load(fn)
+        fn = os.path.join(tmp_dir, 'cosmo.json')
+        cosmo.write(fn)
+        cosmo = Cosmology.read(fn)
 
     assert np.allclose(cosmo['m_ncdm'], m_ncdm)
     assert cosmo.engine.__class__.__name__ == 'ClassEngine'
@@ -128,7 +128,7 @@ def test_background(params, seed=42):
         rtol = 2e-4
         if engine in ['class', 'camb', 'astropy', 'eisenstein_hu', 'eisenstein_hu_nowiggle', 'eisenstein_hu_nowiggle_variants', 'bbks']:
             names += ['time', 'comoving_radial_distance', 'luminosity_distance', 'angular_diameter_distance', 'comoving_angular_distance']
-        if engine in ['class']:
+        if engine in ['class', 'camb']:
             names += ['growth_factor', 'growth_rate']
         if engine in ['eisenstein_hu', 'eisenstein_hu_nowiggle', 'eisenstein_hu_nowiggle_variants', 'bbks'] and not cosmo['N_ncdm'] and not cosmo._has_fld:
             rtol = 2e-2
@@ -149,10 +149,12 @@ def test_thermodynamics(params):
 
     for engine in ['camb']:
         th = Thermodynamics(cosmo, engine=engine)
-        for name in ['z_drag', 'rs_drag', 'z_star', 'rs_star']:  # weirdly enough, class's z_rec seems to match camb's z_star much better
-            assert np.allclose(getattr(th, name), getattr(th_class, name), atol=0, rtol=5e-3 if 'star' in name else 2e-4)
-        for name in ['theta_star', 'theta_cosmomc']:
-            assert np.allclose(getattr(th, name), getattr(th_class, name), atol=0, rtol=5e-3 if 'star' in name else 5e-5)
+        for name in ['z_drag', 'rs_drag', 'z_star', 'rs_star']:
+            assert np.allclose(getattr(th, name), getattr(th_class, name), atol=0, rtol=2e-4)
+        for name in ['theta_star']:
+            assert np.allclose(getattr(th, name), getattr(th_class, name), atol=0, rtol=2e-4)
+        for name in ['theta_cosmomc']:
+            assert np.allclose(getattr(th, name), getattr(th_class, name), atol=0, rtol=5e-5)
         for name in ['YHe']:
             assert np.allclose(getattr(th, name), getattr(th_class, name), atol=0, rtol=1e-2)
         assert np.allclose(th_class.theta_cosmomc, cosmo['theta_cosmomc'], atol=0., rtol=3e-6)
@@ -779,9 +781,6 @@ def test_isitgr(plot=False):
 
     from cosmoprimo.fiducial import DESI
     cosmo = DESI(engine='isitgr')
-    cosmo['Q0']
-    assert 'Q0' in cosmo.get_default_params()
-    assert 'Q0' in cosmo.get_default_parameters()
 
     if plot:
         z = 1.
@@ -901,6 +900,31 @@ def test_negnuclass():
         ax.loglog(pk.k, pk(pk.k, z=1.))
     plt.show()
 
+def test_decnuclass():
+    cosmo_class = Cosmology(engine='class')
+    try:
+        cosmo = Cosmology(engine='decnuclass')
+    except ImportError:
+        return
+
+    k = np.linspace(0.01, 1., 200)
+    z = np.linspace(0., 2., 10)
+    assert np.allclose(cosmo_class.get_fourier().pk_interpolator()(k=k, z=z), cosmo.get_fourier().pk_interpolator()(k=k, z=z), atol=0., rtol=1e-4)
+
+    params = {'m_ncdm': 0.4, 'Gamma_ncdm': 1e2}
+    cosmo = Cosmology(engine='decnuclass', **params)
+    assert not np.allclose(cosmo_class.get_fourier().pk_interpolator(of='theta_cb')(k=k, z=z), cosmo.get_fourier().pk_interpolator(of='theta_cb')(k=k, z=z), atol=0., rtol=1e-4)
+    cosmo.comoving_radial_distance(z)
+
+    from cosmoprimo.fiducial import DESI
+    from matplotlib import pyplot as plt
+    ax = plt.gca()
+    for Gamma_ncdm in [1e2,1e3,1e4]:
+        params.update(m_ncdm=m_ncdm)
+        cosmo = DESI(engine='decnuclass', **params)
+        pk = cosmo.get_fourier().pk_interpolator(of='theta_cb')
+        ax.loglog(pk.k, pk(pk.k, z=1.))
+    plt.show()
 
 def test_neff():
     for m_ncdm in [[], [0.] * 3]:

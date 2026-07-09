@@ -26,6 +26,14 @@ def test_boss():
     cosmo = fiducial.BOSS()
     assert cosmo['h'] == 0.676
 
+
+def test_uchuu():
+    cosmo = fiducial.Uchuu(engine='class')
+    ref = {'Omega_m': 0.3089, 'h': 0.6774, 'sigma8': 0.8159, 'Omega_b': 0.0486, 'n_s': 0.9667}
+    for name in ref:
+        assert cosmo[name] == ref[name], f'{name}: {cosmo[name]} vs {ref[name]}'
+
+
 def test_abacus():
     from cosmoprimo.fiducial import AbacusSummit_params, AbacusSummit
     dcosmos = AbacusSummit_params(params=['root', 'omega_b', 'omega_cdm', 'h', 'A_s', 'n_s', 'alpha_s', 'N_ur', 'omega_ncdm', 'w0_fld', 'wa_fld'])
@@ -96,9 +104,9 @@ def test_desi(plot=False):
     assert cosmo.engine._extra_params
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        fn = os.path.join(tmp_dir, 'cosmo.npy')
-        cosmo.save(fn)
-        cosmo = Cosmology.load(fn)
+        fn = os.path.join(tmp_dir, 'cosmo.json')
+        cosmo.write(fn)
+        cosmo = Cosmology.read(fn)
 
     assert np.allclose(cosmo['omega_ncdm'], 0.0006442)
     assert cosmo['N_ncdm'] == 1
@@ -153,6 +161,7 @@ if __name__ == '__main__': # pragma: no cover
     test_uchuu()
     test_planck()
     test_boss()
+    test_uchuu()
     test_abacus()
     test_desi(plot=False)
     test_save_tabulatedDESI()
