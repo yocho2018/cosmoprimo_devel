@@ -251,6 +251,11 @@ def _compute_rs_cosmomc(omega_b, omega_m, hubble_function, epsabs=1e-7, epsrel=1
         Sound horizon in proper Mpc.
     zstar : float
         Redshift of the last scattering surface.
+
+    Raises
+    ------
+    CosmologyComputationError
+        If integration fails.
     """
 
     from .jax import romberg

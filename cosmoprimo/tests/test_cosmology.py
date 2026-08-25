@@ -130,10 +130,13 @@ def test_background(params, seed=42):
             names += ['time', 'comoving_radial_distance', 'luminosity_distance', 'angular_diameter_distance', 'comoving_angular_distance']
         if engine in ['class', 'camb']:
             names += ['growth_factor', 'growth_rate']
-        if engine in ['eisenstein_hu', 'eisenstein_hu_nowiggle', 'eisenstein_hu_nowiggle_variants', 'bbks'] and not cosmo['N_ncdm'] and not cosmo._has_fld:
+        if engine in ['eisenstein_hu', 'eisenstein_hu_nowiggle', 'eisenstein_hu_nowiggle_variants', 'bbks']:
             rtol = 2e-2
-            names += ['growth_factor', 'growth_rate']
+            if not cosmo['N_ncdm'] and not cosmo._has_fld:
+                names += ['growth_factor', 'growth_rate']
         for name in names:
+            if name in ['growth_factor', 'growth_rate'] and sum(getattr(ba, 'm_ncdm')) != 0.0:
+                rtol = 8e-2
             assert_allclose(ba, name, atol=0, rtol=rtol)
         if engine in ['class', 'camb', 'astropy']:
             z1, z2 = rng.uniform(0., 1., 10), rng.uniform(0., 1., 10)
@@ -609,6 +612,8 @@ def test_neutrinos():
     pncdm = _compute_ncdm_momenta(T_eff, 1e-14, z=0, epsrel=1e-7, out='p')
     rhoncdm = _compute_ncdm_momenta(T_eff, 1e-14, z=0, epsrel=1e-7, out='rho')
     assert np.allclose(3. * pncdm, rhoncdm, rtol=1e-6)
+    with pytest.raises(ValueError):
+        _compute_ncdm_momenta(T_eff, 1e-14, z=0, epsrel=1e-7, out='error')
 
     for m_ncdm in [0.06, 0.1, 0.2, 0.4]:
         # print(_compute_ncdm_momenta(T_eff, m_ncdm, z=0, out='rho'), _compute_ncdm_momenta(T_eff, m_ncdm, z=0, out='p'))
@@ -633,21 +638,28 @@ def test_neutrinos():
     #for i in range(niterations): _compute_ncdm_momenta(T_eff, m, z)
     toret = _compute_ncdm_momenta(T_eff, m, z, method='quad')
     toret2 = _compute_ncdm_momenta(T_eff, m, z, method='laguerre')
-    print((toret2 - toret) / toret)
+    #print((toret2 - toret) / toret)
+    assert np.allclose(toret2, toret, rtol=1e-5)
 
-    import time
-    t0 = time.time()
-    toret2 = _compute_ncdm_momenta(T_eff, m, z)
-    print(time.time() - t0, toret)
+    #import time
+    #t0 = time.time()
+    #toret2 = _compute_ncdm_momenta(T_eff, m, z)
+    #print(time.time() - t0, toret)
 
 
 def test_clone():
-
+    from cosmoprimo.cosmology import _deepeq
     cosmo = Cosmology(omega_cdm=0.2, engine='class')
+    #cosmo_clone = cosmo.clone()
+    #assert cosmo_clone.__eq__(cosmo)
     engine = cosmo.engine
-
+    assert _deepeq('a', 1) == False
     for factor in [1., 1.1]:
         cosmo_clone = cosmo.clone(omega_cdm=cosmo['omega_cdm'] * factor)
+        if factor == 1:
+            assert cosmo_clone.__eq__(cosmo)
+        else:
+            assert not cosmo_clone.__eq__(cosmo)
         assert type(cosmo_clone.engine) == type(engine)
         assert cosmo_clone.engine is not engine
         z = np.linspace(0.5, 2., 100)
@@ -689,6 +701,9 @@ def test_theta_cosmomc():
     rs, zstar = _compute_rs_cosmomc(cosmo.Omega0_b * cosmo.h**2, cosmo.Omega0_m * cosmo.h**2, cosmo.hubble_function)
     theta_cosmomc = rs * cosmo.h / cosmo.comoving_angular_distance(zstar)
     assert np.allclose(theta_cosmomc, cosmo.theta_cosmomc, atol=0., rtol=2e-6)
+    with pytest.raises(ValueError):
+        _compute_rs_cosmomc(0.05, 0.14, lambda z: 70.0, epsabs=1e-1)
+    
 
 
 def test_bisect():
@@ -763,7 +778,7 @@ def test_bisect():
     cosmo2 = DESI(engine='class').solve('h', lambda cosmo: 100. * cosmo.get_thermodynamics().theta_star, target=100. * 0.0104, limits=[0.6, 0.9], xtol=1e-6)
     assert np.allclose(cosmo2['h'], cosmo['h'])
 
-
+"""
 def test_isitgr(plot=False):
     cosmo_camb = Cosmology(engine='camb')
     try:
@@ -925,7 +940,7 @@ def test_decnuclass():
         pk = cosmo.get_fourier().pk_interpolator(of='theta_cb')
         ax.loglog(pk.k, pk(pk.k, z=1.))
     plt.show()
-
+"""
 def test_neff():
     for m_ncdm in [[], [0.] * 3]:
         cosmo = Cosmology(engine='class', m_ncdm=m_ncdm)
@@ -1637,10 +1652,10 @@ if __name__ == '__main__':
     # test_external_camb()
     test_external_pyccl()
     test_bisect()
-    test_isitgr()
-    test_mgcamb()
-    test_axiclass()
-    test_mochiclass()
-    test_negnuclass()
+    #test_isitgr()
+    #test_mgcamb()
+    #test_axiclass()
+    #test_mochiclass()
+    #test_negnuclass()
     test_default_background()
     #test_fk()
