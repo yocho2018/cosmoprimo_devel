@@ -8,10 +8,12 @@ from typing import NamedTuple, Sequence, Union, Optional, Callable, Any
 # Local
 from cobaya.theories.cosmo import BoltzmannBase
 from cobaya.log import LoggedError, get_logger
-from cobaya.install import download_github_release
+from cobaya.install import download_github_release, pip_install, check_gcc_version
 from cobaya.component import ComponentNotInstalledError, load_external_module
 from cobaya.tools import Pool1D, Pool2D, PoolND, combine_1d, get_compiled_import_path, \
     VersionCheckError
+
+from cobaya.theories.cosmo import BoltzmannBase
 
 
 # Result collector

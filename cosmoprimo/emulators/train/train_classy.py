@@ -231,7 +231,6 @@ def test():
     from cosmoprimo.cosmology import Cosmology, DefaultBackground
     from cosmoprimo.jax import vmap
     from cosmoprimo.emulators.tools.base import batch_vmap
-    from cosmoprimo.emulators import get_calculator, QMCSampler, HarmonicNormOperation
 
     if 1:
         ref = DESI(engine='class')

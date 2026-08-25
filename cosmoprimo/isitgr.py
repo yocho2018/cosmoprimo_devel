@@ -1,11 +1,11 @@
 """Cosmological calculation with the Boltzmann code CAMB."""
 
-
 import warnings
 
 import numpy as np
 
-from .camb import CambEngine
+from .camb import CambEngine, Background, Thermodynamics, Primordial, Transfer, Harmonic, Fourier
+from . import utils, constants
 
 np.int = int  # Otherwise, AttributeError in isitgr in recent numpy
 
@@ -54,6 +54,9 @@ class IsitgrEngine(CambEngine):
         r_c=0.0,
         fR0_HS=0.0,
         n_HS=1.0,
+        mu_kinf_BZmass=1.0,
+        lambda_a_BZmass=0.0,
+        lambda_dS_BZmass=0.0,
     )
 
     _default_calculation_parameters = dict(
@@ -65,7 +68,25 @@ class IsitgrEngine(CambEngine):
         redshift_bins=None,
         scale_bins=None,
         use_nDGP=False,
+        use_BZ_Mass_form=False,
     )
+
+    @classmethod
+    def _compile_params(cls, params):
+        """isitgr natively expects its MG pivot scales in its own physical units: Mpc^-1 for
+        the wavenumber-type pivots (k_TGR, k_c, k_S, k_tw) and Mpc for the length-type BZ pivot
+        (lambda_1) and BZ_Mass inverse-mass pivots (lambda_a_BZmass, lambda_dS_BZmass). We
+        instead let users specify these in h/Mpc (wavenumber-type) or Mpc/h (length-type)
+        units, consistent with cosmoprimo/desilike's usual h/Mpc convention, and convert to
+        isitgr's native units here: k[Mpc^-1] = k[h/Mpc] * h; length[Mpc] = length[Mpc/h] / h.
+        """
+        params = super()._compile_params(params)
+        h = params['h']
+        for name in ('k_TGR', 'k_c', 'k_S', 'k_tw'):
+            params[name] = params[name] * h
+        for name in ('lambda_1', 'lambda_a_BZmass', 'lambda_dS_BZmass'):
+            params[name] = params[name] / h
+        return params
 
     def _set_camb(self):
         import isitgr

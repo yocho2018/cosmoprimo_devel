@@ -116,7 +116,8 @@ _AbacusSummit_params_filename = os.path.join(_dir_data, 'abacus_cosmologies.csv'
 
 
 def AbacusSummit_params(name=None, filename=_AbacusSummit_params_filename, params=None):
-    """Return AbacusSummit cosmological parameters.
+    """
+    Return AbacusSummit cosmological parameters.
 
     Note
     ----
@@ -195,7 +196,8 @@ def AbacusSummit_params(name=None, filename=_AbacusSummit_params_filename, param
 
 
 def AbacusSummit(name=0, engine='class', precision=None, extra_params=None, **params):
-    """Initialize :class:`Cosmology` with AbacusSummit cosmological parameters.
+    """
+    Initialize :class:`Cosmology` with AbacusSummit cosmological parameters.
 
     Note
     ----
@@ -288,7 +290,8 @@ def AbacusSummit(name=0, engine='class', precision=None, extra_params=None, **pa
 
 
 def AbacusSummitBase(engine='class', precision=None, extra_params=None, **params):
-    """Initialize :class:`Cosmology` with base AbacusSummit cosmological parameters
+    """
+    Initialize :class:`Cosmology` with base AbacusSummit cosmological parameters
     (Planck2018, base_plikHM_TTTEEE_lowl_lowE_lensing mean).
 
     Note
@@ -330,7 +333,8 @@ _DESI_filename = os.path.join(_dir_data, 'desi.dat')
 
 
 def TabulatedDESI():
-    """Tabulated DESI cosmology.
+    """
+    Tabulated DESI cosmology.
 
     Note:
     ----

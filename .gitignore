@@ -16,3 +16,6 @@ doc/_build/
 **/*.zip
 # Unit test / coverage reports
 **/.coverage
+test_fk_dpdd_m_ncdm_0.4.png
+test_fk_m_ncdm_0.4.png
+test_pkz_m_ncdm_0.4.png

@@ -2,7 +2,7 @@
 
 from pyclass import mochiclass
 
-from .cosmology import CosmologyInputError, CosmologyComputationError
+from .cosmology import BaseEngine, CosmologyInputError, CosmologyComputationError
 from . import classy
 
 

@@ -280,11 +280,9 @@ if __name__ == '__main__':
             for section in ['thermodynamics', 'fourier', 'harmonic'][2:]:
                 plot(samples_fn[section], section=section)
 
-        # Plot Compression is not defined 
-        # if 'plot_compression' in todo:
-        #     for section in ['fourier', 'harmonic'][:1]:
-        #         plot_compression(samples_fn[section], section=section)
+        if 'plot_compression' in todo:
+            for section in ['fourier', 'harmonic'][:1]:
+                plot_compression(samples_fn[section], section=section)
 
-        # Test is not defined
-        # if 'test' in todo:
-        #     test()
+        if 'test' in todo:
+            test()

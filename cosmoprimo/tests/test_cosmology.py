@@ -516,14 +516,13 @@ def test_external_camb():
     print(tr.get_lens_potential_cls(lmax=100, CMB_unit=None, raw_cl=True))
 
     params = camb.CAMBparams(H0=70, omch2=0.15, ombh2=0.02)
-    ## Using False flag for WantCls doesn't throw and error but doing same for Want_CMB does!
-    params.WantCls = False
-    # params.Want_CMB = False
-    params.WantTransfer = True
+    #params.WantCls = False
+    params.Want_CMB = False
+    # params.WantTransfer = True
     tr = camb.get_transfer_functions(params)
     params.Want_CMB = True
     tr.calc_power_spectra(params)
-    # print(tr.get_unlensed_scalar_cls(lmax=100, CMB_unit=None, raw_cl=True))
+    print(tr.get_unlensed_scalar_cls(lmax=100, CMB_unit=None, raw_cl=True))
     # print(tr.get_total_cls(lmax=100, CMB_unit=None, raw_cl=True))
 
 
@@ -641,10 +640,10 @@ def test_neutrinos():
     #print((toret2 - toret) / toret)
     assert np.allclose(toret2, toret, rtol=1e-5)
 
-    #import time
-    #t0 = time.time()
-    #toret2 = _compute_ncdm_momenta(T_eff, m, z)
-    #print(time.time() - t0, toret)
+    import time
+    t0 = time.time()
+    toret2 = _compute_ncdm_momenta(T_eff, m, z)
+    print(time.time() - t0, toret)
 
 
 def test_clone():
@@ -778,7 +777,7 @@ def test_bisect():
     cosmo2 = DESI(engine='class').solve('h', lambda cosmo: 100. * cosmo.get_thermodynamics().theta_star, target=100. * 0.0104, limits=[0.6, 0.9], xtol=1e-6)
     assert np.allclose(cosmo2['h'], cosmo['h'])
 
-"""
+
 def test_isitgr(plot=False):
     cosmo_camb = Cosmology(engine='camb')
     try:
@@ -805,8 +804,7 @@ def test_isitgr(plot=False):
         for kwargs in [{}, {'mu0': -0.5, 'Sigma0': 0.}, {'mu0': -0.5, 'Sigma0': 1.}]:
             pk = Cosmology(engine='isitgr', MG_parameterization='muSigma', **kwargs).get_fourier().pk_interpolator(of='delta_cb').to_1d(z=z)
             #ax.plot(k,  k * pk(k), label=str(kwargs))
-            k = pk.k
-            ax.loglog(k,  pk(k), label=str(kwargs))
+            k = pk.k; ax.loglog(k,  pk(k), label=str(kwargs))
         ax.legend()
         plt.show()
 
@@ -837,8 +835,7 @@ def test_mgcamb(plot=False):
         for kwargs in [{}, {'mu0': -0.5, 'sigma0': 0.}, {'mu0': -0.5, 'sigma0': 1.}]:
             pk = Cosmology(engine='mgcamb', MG_flag=1, **kwargs).get_fourier().pk_interpolator(of='delta_cb').to_1d(z=z)
             #ax.plot(k,  k * pk(k), label=str(kwargs))
-            k = pk.k
-            ax.loglog(k,  pk(k), label=str(kwargs))
+            k = pk.k; ax.loglog(k,  pk(k), label=str(kwargs))
         ax.legend()
         plt.show()
 
@@ -940,7 +937,7 @@ def test_decnuclass():
         pk = cosmo.get_fourier().pk_interpolator(of='theta_cb')
         ax.loglog(pk.k, pk(pk.k, z=1.))
     plt.show()
-"""
+
 def test_neff():
     for m_ncdm in [[], [0.] * 3]:
         cosmo = Cosmology(engine='class', m_ncdm=m_ncdm)
@@ -1070,8 +1067,6 @@ def test_jax():
         test_jit(dict(m_ncdm=value))
     print((time.time() - t0) / n)
 
-
-    ## I don't see Einstein-Hu has a method to solve for theta_MC_100
     def test(theta_MC_100):
         cosmo = DESI(engine='eisenstein_hu').solve('h', 'theta_MC_100', target=theta_MC_100)
         return cosmo.comoving_radial_distance(1.)
@@ -1128,7 +1123,7 @@ def test_jax():
     test_jacfwd = jacfwd(test)
     assert not np.allclose(test_jacfwd(dict(Omega_m=0.3, logA=3.))['logA'], 0.)
 
-## Not sure what this test is supposed to be doing, need to fix it!!
+
 def test_interp():
     from matplotlib import pyplot as plt
     from jax import numpy as jnp
@@ -1652,10 +1647,10 @@ if __name__ == '__main__':
     # test_external_camb()
     test_external_pyccl()
     test_bisect()
-    #test_isitgr()
-    #test_mgcamb()
-    #test_axiclass()
-    #test_mochiclass()
-    #test_negnuclass()
+    test_isitgr()
+    test_mgcamb()
+    test_axiclass()
+    test_mochiclass()
+    test_negnuclass()
     test_default_background()
     #test_fk()

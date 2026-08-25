@@ -7,7 +7,7 @@ import logging
 
 import numpy as np
 
-from .jax import register_pytree_node_class, numpy_jax, Interpolator1D, exception
+from .jax import register_pytree_node_class
 
 
 def mkdir(dirname):
@@ -49,7 +49,8 @@ def _restore_from_json(obj):
 
 
 class BaseClass(object):
-    """Base class to be used throughout the **cosmoprimo** package.
+    """
+    Base class to be used throughout the **cosmoprimo** package.
     Implements a :meth:`copy` method.
     """
     def __copy__(self):
@@ -63,6 +64,7 @@ class BaseClass(object):
 
 
 def addproperty(*attrs):
+
     """Add properties ``attrs`` to class ``cls`` (assumed to be internally stored as '_attr')."""
 
     def decorator(cls):
@@ -86,8 +88,7 @@ def addproperty(*attrs):
 def _bcast_dtype(*args):
     r"""If input arrays are all float32, return float32; else float64."""
     tmp = [arg.dtype for arg in args if hasattr(arg, 'dtype')]
-    if not tmp:
-        tmp.append(np.float64)
+    if not tmp: tmp.append(np.float64)
     toret = np.result_type(*tmp)
     if not np.issubdtype(toret, np.floating):
         toret = np.float64
@@ -113,11 +114,7 @@ def flatarray(iargs=[0], dtype=np.float64):
                 array = _np.asarray(args[iarg], dtype=input_dtype)
                 if shape is not None:
                     if array.shape != shape:
-                        raise ValueError(
-                            'input arrays must have same shape, found {}, {}'.format(
-                                shape, array.shape
-                            )
-                        )
+                        raise ValueError('input arrays must have same shape, found {}, {}'.format(shape, array.shape))
                 else:
                     shape = array.shape
                 args[iarg] = array.ravel()
@@ -147,13 +144,11 @@ from .jax import numpy_jax, Interpolator1D, exception
 @register_pytree_node_class
 class LeastSquareSolver(BaseClass):
     r"""
-    Class that solves the least square problem, i.e. solves
-    :math:`d\chi^{2}/d\mathbf{p} = 0` for :math:`\mathbf{p}`, with:
+    Class that solves the least square problem, i.e. solves :math:`d\chi^{2}/d\mathbf{p} = 0` for :math:`\mathbf{p}`, with:
 
     .. math::
 
-        \chi^{2} = \left(\mathbf{\delta} - \mathbf{p} \cdot \mathbf{grad}\right)^{T} \mathbf{F}
-        \left(\mathbf{\delta} - \mathbf{p} \cdot \mathbf{grad}\right)
+        \chi^{2} = \left(\mathbf{\delta} - \mathbf{p} \cdot \mathbf{grad}\right)^{T} \mathbf{F} \left(\mathbf{\delta} - \mathbf{p} \cdot \mathbf{grad}\right)
 
     >>> lss = LeastSquareSolver(np.ones(4))
     >>> lss(2 * np.ones(4))
@@ -186,9 +181,9 @@ class LeastSquareSolver(BaseClass):
             First dimension is the number of model parameters, second is number of constraints.
 
         compute_inverse : bool, default=True
-            Compute matrix inverse to get Fisher matrix; this is faster in case of many
-            calls to the solver. Else, ``np.linalg.solve`` is used to solve the system at
-            each call, which may be numerically more stable than computing the inverse.
+            Compute matrix inverse to get Fisher matrix; this is faster in case of many calls to the solver.
+            Else, ``np.linalg.solve`` is used to solve the system at each call, which may be numerically more stable
+            than computing the inverse.
         """
         # gradient shape = (nparams, ndata)
         jnp = numpy_jax(gradient, precision, constraint_gradient)
@@ -207,29 +202,16 @@ class LeastSquareSolver(BaseClass):
         if constraint_gradient is None:
             self.nconstraints = 0
         else:
-            if (constraint_gradient.ndim != 2 or
-                    constraint_gradient.shape[0] != self.gradient.shape[0]):
-                raise ValueError(
-                    'constraint_gradient must be 2D, of first dimension the number of '
-                    'model parameters (gradient first dimension)'
-                )
             constraint_gradient = jnp.atleast_2d(constraint_gradient)
             self.nconstraints = constraint_gradient.shape[-1]
-
+            if constraint_gradient.ndim != 2 or constraint_gradient.shape[0] != self.gradient.shape[0]:
+                raise ValueError('constraint_gradient must be 2D, of first dimension the number of model parameters (gradient first dimension)')
             dtype = constraint_gradient.dtype
             # Possible improvement: block-inverse
-            invfisher = jnp.bmat([
-                [invfisher, - constraint_gradient],
-                [constraint_gradient.T,
-                 np.zeros((self.nconstraints,) * 2, dtype=dtype)]
-            ]).A
-            hv = jnp.bmat([
-                [hv, jnp.zeros(constraint_gradient.shape, dtype=dtype)],
-                [
-                    jnp.zeros((self.nconstraints, self.gradient.shape[-1]), dtype=dtype),
-                    jnp.eye(self.nconstraints, dtype=dtype)
-                ]
-            ]).A
+            invfisher = jnp.bmat([[invfisher, - constraint_gradient],
+                                  [constraint_gradient.T, np.zeros((self.nconstraints,) * 2, dtype=dtype)]]).A
+            hv = jnp.bmat([[hv, jnp.zeros(constraint_gradient.shape, dtype=dtype)],
+                           [jnp.zeros((self.nconstraints, self.gradient.shape[-1]), dtype=dtype), jnp.eye(self.nconstraints, dtype=dtype)]]).A
         self.inverse_fisher = invfisher
         self.gradient_precision = hv
 
@@ -243,26 +225,14 @@ class LeastSquareSolver(BaseClass):
             def raise_error(tmp, ref):
                 if not jnp.allclose(tmp, ref, rtol=1e-04, atol=1e-04):
                     import warnings
-                    warnings.warn(
-                        'Numerically inaccurate inverse matrix, max absolute diff {:.6f}.'.format(
-                            jnp.max(jnp.abs(tmp - ref))
-                        )
-                    )
+                    warnings.warn('Numerically inaccurate inverse matrix, max absolute diff {:.6f}.'.format(jnp.max(jnp.abs(tmp - ref))))
 
             exception(raise_error, tmp, ref)
 
             self.projector = fisher.dot(hv).T
 
     def tree_flatten(self):
-        children = ({
-            name: getattr(self, name)
-            for name in [
-                'precision', 'constraint_gradient', 'compute_inverse',
-                'gradient_precision', 'projector', 'inverse_fisher',
-                'delta', 'params'
-            ]
-            if hasattr(self, name)
-        },)
+        children = ({name: getattr(self, name) for name in ['precision', 'gradient_precision', 'projector', 'inverse_fisher', 'delta', 'params'] if hasattr(self, name)},)
         return children, {}
 
     @classmethod
@@ -285,11 +255,9 @@ class LeastSquareSolver(BaseClass):
         self.params = params[..., :self.gradient.shape[0]]
 
     def __call__(self, delta, constraint=None):
-        r"""Main method to be called; return parameters :math:`\mathbf{p}` best fitting
-        ``delta``."""
+        r"""Main method to be called; return parameters :math:`\mathbf{p}` best fitting ``delta``."""
         self.compute(delta, constraint=constraint)
-        if self.isscalar:
-            return self.params[..., 0]
+        if self.isscalar: return self.params[..., 0]
         return self.params
 
     def model(self):
