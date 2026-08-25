@@ -9,8 +9,8 @@ from cosmoprimo import (Cosmology, Background, Thermodynamics, Primordial,
                         constants)
 
 def test_params():
-    from cosmoprimo.cosmology import get_default_params
-    default_params = get_default_params(of='cosmology')
+    from cosmoprimo.cosmology import BaseCosmoParams
+    default_params = BaseCosmoParams().get_default_params(of='cosmology')
     cosmo = Cosmology()
     with pytest.raises(CosmologyError):
         cosmo = Cosmology(sigma8=1., A_s=1e-9)
